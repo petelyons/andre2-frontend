@@ -1,0 +1,810 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+
+function Toast({ message, onClose }: { message: string, onClose: () => void }) {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 3000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+    return (
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow z-50 animate-fade-in">
+            {message}
+        </div>
+    );
+}
+
+function AirhornModal({ open, onClose, onSelect }: { open: boolean, onClose: () => void, onSelect: (name: string) => void }) {
+  const [airhorns, setAirhorns] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setLoading(true);
+      setError(null);
+      fetch('http://localhost:3001/api/airhorns')
+        .then(res => res.json())
+        .then(data => {
+          setAirhorns(Array.isArray(data.airhorns) ? data.airhorns : []);
+          setLoading(false);
+        })
+        .catch(() => {
+          setError('Failed to load airhorns');
+          setLoading(false);
+        });
+    } else {
+      setAirhorns([]);
+      setError(null);
+    }
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: "rgba(0,0,0,0.10)" }}>
+      <div className="bg-white rounded-lg shadow-lg px-6 py-4 max-w-xs w-full flex flex-col items-center">
+        <h2 className="text-lg font-bold mb-4 text-center">Choose an Airhorn</h2>
+        {loading ? (
+          <div className="text-gray-500">Loading...</div>
+        ) : error ? (
+          <div className="text-red-500">{error}</div>
+        ) : (
+          <ul className="space-y-2 mb-4 w-full">
+            {airhorns.map(name => (
+              <li key={name} className="w-full">
+                <button
+                  className="w-full text-left px-4 py-2 rounded hover:bg-blue-100"
+                  onClick={() => { onSelect(name); onClose(); }}
+                >
+                  {name.replace(/-/g, ' ')}
+                </button>
+              </li>
+            ))}
+            {airhorns.length === 0 && <li className="text-gray-400 text-center">No airhorns found</li>}
+          </ul>
+        )}
+        <button className="mt-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// JamCount component
+function JamCount({ count }: { count: number }) {
+    if (count > 50) {
+        // Arbitrary cap for flaming heart
+        return <span title={count + ' jams'}>❤️‍🔥</span>;
+    }
+    const blue = Math.floor(count / 10);
+    const green = Math.floor((count % 10) / 5);
+    const red = count % 5;
+    return (
+        <span className="flex flex-row gap-0.5 items-center" title={count + ' jams'}>
+            {Array(blue).fill(0).map((_, i) => <span key={'b'+i}>💙</span>)}
+            {Array(green).fill(0).map((_, i) => <span key={'g'+i}>💚</span>)}
+            {Array(red).fill(0).map((_, i) => <span key={'r'+i}>❤️</span>)}
+        </span>
+    );
+}
+
+export default function Main() {
+    const [trackId, setTrackId] = useState('');
+    const [tracks, setTracks] = useState<any[]>([]);
+    const [connected, setConnected] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
+    const [mode, setMode] = useState<'master_play' | 'master_pause'>('master_pause');
+    const [sessionMode, setSessionMode] = useState<'session_play' | 'session_pause'>('session_pause');
+    const [currentlyPlayingTrack, setCurrentlyPlayingTrack] = useState<any>(null);
+    const wsRef = useRef<WebSocket | null>(null);
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [reconnectAttempts, setReconnectAttempts] = useState(0);
+    const router = useRouter();
+    const [masterUserSessionId, setMasterUserSessionId] = useState<string | null>(null);
+    const [connectedSessions, setConnectedSessions] = useState<Array<{
+        sessionId: string;
+        userId: string | null;
+        name: string;
+        email: string;
+        isMaster: boolean;
+    }>>([]);
+    // Master-only: Load random liked tracks
+    const [loadingRandomLiked, setLoadingRandomLiked] = useState(false);
+    const [airhornModalOpen, setAirhornModalOpen] = useState(false);
+    const airhornAudioRef = useRef<HTMLAudioElement | null>(null);
+    const [showHistory, setShowHistory] = useState(false);
+    const [history, setHistory] = useState<any[]>([]);
+    // Add play history state
+    const [playHistory, setPlayHistory] = useState<any[]>([]);
+    // Add sidebar tab state: 0 = users, 1 = event history, 2 = play history
+    const [sidebarTab, setSidebarTab] = useState(0);
+    const [prominentToast, setProminentToast] = useState<string | null>(null);
+
+    // WebSocket connect logic with auto-reconnect
+    const connectWebSocket = useCallback(() => {
+        const sessionId = localStorage.getItem('sessionId');
+        // Only close if we have a different connection or if it's in a closing/closed state
+        if (wsRef.current && (wsRef.current.readyState === WebSocket.CLOSED || wsRef.current.readyState === WebSocket.CLOSING)) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+        
+        // Don't create a new connection if we already have an open one
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            return;
+        }
+        
+        const ws = new WebSocket('ws://localhost:3002');
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+            setConnected(true);
+            setReconnectAttempts(0);
+            // Send login message with sessionId
+            if (sessionId) {
+                ws.send(JSON.stringify({ type: 'login', userId: sessionId }));
+            }
+            // Request the track list when the connection opens
+            ws.send(JSON.stringify({ type: 'get_tracks' }));
+            // Request the session list when the connection opens
+            ws.send(JSON.stringify({ type: 'get_sessions' }));
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                switch (data.type) {
+                    case 'tracks_list':
+                        setTracks(data.tracks);
+                        break;
+                    case 'mode':
+                        setMode(data.mode);
+                        setCurrentlyPlayingTrack(data.currentlyPlayingTrack || null);
+                        setMasterUserSessionId(data.masterUserSessionId || null);
+                        console.log('Mode message received:', data);
+                        break;
+                    case 'session_mode':
+                        setSessionMode(data.sessionMode);
+                        break;
+                    case 'sessions_list':
+                        setConnectedSessions(data.sessions || []);
+                        break;
+                    case 'play_airhorn':
+                        if (data.airhorn) {
+                            const audio = new window.Audio(`/airhorns/${data.airhorn}.mp3`);
+                            audio.play();
+                        }
+                        break;
+                    case 'history':
+                        setHistory(Array.isArray(data.history) ? data.history : []);
+                        break;
+                    case 'login_error':
+                        // If listener info is available, auto-relogin
+                        const listenerName = localStorage.getItem('listener_name');
+                        const listenerEmail = localStorage.getItem('listener_email');
+                        if (listenerName && listenerEmail) {
+                            fetch('http://localhost:3001/api/listener-login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name: listenerName, email: listenerEmail })
+                            })
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.sessionId) {
+                                        localStorage.setItem('sessionId', data.sessionId);
+                                        // Reconnect WebSocket with new sessionId
+                                        if (wsRef.current) wsRef.current.close();
+                                        setTimeout(() => connectWebSocket(), 100);
+                                    } else {
+                                        router.push('/login');
+                                    }
+                                })
+                                .catch(() => {
+                                    router.push('/login');
+                                });
+                        } else {
+                            router.push('/login');
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error('Error processing message:', error);
+            }
+        };
+
+        ws.onclose = () => {
+            setConnected(false);
+            // Auto-reconnect with exponential backoff (max 10s)
+            const nextDelay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            setReconnectAttempts((prev) => prev + 1);
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = setTimeout(() => {
+                connectWebSocket();
+            }, nextDelay);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    }, [reconnectAttempts]);
+
+    useEffect(() => {
+        // Check if user is logged in
+        const sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            router.push('/login');
+            return;
+        }
+        fetch(`http://localhost:3001/api/session/${sessionId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.loggedIn) {
+                    router.push('/login');
+                }
+            })
+            .catch(() => {
+                router.push('/login');
+            });
+        connectWebSocket();
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        };
+    }, []); // Only run once on mount
+
+    // Listen for prominent_message WebSocket events
+    useEffect(() => {
+        if (!wsRef.current) return;
+        const ws = wsRef.current;
+        const handler = (event: MessageEvent) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'prominent_message' && msg.message) {
+                    setProminentToast(msg.message);
+                    setTimeout(() => setProminentToast(null), 8000);
+                }
+            } catch {}
+        };
+        ws.addEventListener('message', handler);
+        return () => ws.removeEventListener('message', handler);
+    }, []);
+
+    const submitTrack = async () => {
+        if (!trackId.trim()) return;
+        const sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            alert('No session ID found. Please log in again.');
+            router.push('/login');
+            return;
+        }
+        // Check for duplicate track on the client side
+        if (tracks.some(t => t.spotifyUri === trackId)) {
+            setToast('That track is already in the Play Queue.');
+            return;
+        }
+        try {
+            const res = await fetch('http://localhost:3001/api/tracks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'spotify-access-token': localStorage.getItem('spotify_access_token') || '',
+                },
+                body: JSON.stringify({ trackId, sessionId }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                // If backend also returns duplicate (in case of race), show toast
+                if (data && data.success && tracks.some(t => t.spotifyUri === trackId)) {
+                    setToast('That track is already in the Play Queue.');
+                }
+            }
+            setTrackId('');
+        } catch (error) {
+            alert('Failed to submit track');
+        }
+    };
+
+    const sessionId = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null;
+
+    // Common WebSocket send handler
+    const handleWsSend = (obj: any) => {
+        if (wsRef.current) {
+            wsRef.current.send(JSON.stringify(obj));
+        }
+    };
+
+    // Master Play and Pause controls
+    const handlePlay = () => handleWsSend({ type: 'master_play' });
+    const handlePause = () => handleWsSend({ type: 'master_pause' });
+    const isMaster = sessionId && masterUserSessionId && sessionId === masterUserSessionId;
+    // Session Play and Pause controls
+    const handleSessionPlay = () => sessionId && handleWsSend({ type: 'session_play', sessionId });
+    const handleSessionPause = () => sessionId && handleWsSend({ type: 'session_pause', sessionId });
+
+    // Send a 'jam' message via WebSocket
+    const handleJam = (track: any) => {
+        if (sessionId) {
+            handleWsSend({ type: 'jam', spotifyUri: track.spotifyUri, sessionId });
+        }
+    };
+
+    // Send a 'remove_track' message via WebSocket
+    const handleRemoveTrack = (track: any) => {
+        if (sessionId) {
+            handleWsSend({ type: 'remove_track', spotifyUri: track.spotifyUri, sessionId });
+        }
+    };
+
+    // Master-only: Load random liked tracks
+    const handleLoadRandomLiked = async () => {
+        setLoadingRandomLiked(true);
+        try {
+            const sessionId = localStorage.getItem('sessionId');
+            const res = await fetch('http://localhost:3001/api/master-random-liked', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setToast(`Loaded ${data.added || 0} random liked tracks!`);
+            } else {
+                setToast(data.error || 'Failed to load liked tracks.');
+            }
+        } catch (err) {
+            setToast('Failed to load liked tracks.');
+        } finally {
+            setLoadingRandomLiked(false);
+        }
+    };
+
+    // Send airhorn command
+    const handleSendAirhorn = (airhorn: string) => {
+        if (wsRef.current) {
+            wsRef.current.send(JSON.stringify({ type: 'airhorn', airhorn }));
+        }
+    };
+
+    // Fetch play history on tab switch
+    useEffect(() => {
+        if (sidebarTab === 2 && wsRef.current) {
+            wsRef.current.send(JSON.stringify({ type: 'get_play_history' }));
+        }
+    }, [sidebarTab]);
+
+    // Listen for play_history messages
+    useEffect(() => {
+        if (!wsRef.current) return;
+        const ws = wsRef.current;
+        const handler = (event: MessageEvent) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'play_history') {
+                    setPlayHistory(msg.playHistory || []);
+                }
+            } catch {}
+        };
+        ws.addEventListener('message', handler);
+        return () => ws.removeEventListener('message', handler);
+    }, []);
+
+    // Add the handleMasterSkip function:
+    const handleMasterSkip = () => {
+        if (isMaster && sessionId && wsRef.current) {
+            wsRef.current.send(JSON.stringify({ type: 'master_skip', sessionId }));
+        }
+    };
+
+    // ProminentToast component
+    function ProminentToast({ message, onClose }: { message: string, onClose: () => void }) {
+        useEffect(() => {
+            const timer = setTimeout(onClose, 8000);
+            return () => clearTimeout(timer);
+        }, [onClose]);
+        return (
+            <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-[100] bg-red-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 border-2 border-red-800 animate-fade-in font-bold text-lg">
+                <span className="text-2xl">⚠️</span>
+                <span>{message}</span>
+                <button className="ml-4 text-white text-xl font-bold" onClick={onClose}>&times;</button>
+            </div>
+        );
+    }
+
+    // Get the current user's email
+    const userEmail = (() => {
+        const session = connectedSessions.find(s => s.sessionId === sessionId);
+        // If this is the current user and they are a listener, use localStorage values
+        if (session && session.sessionId === sessionId) {
+            // Heuristic: if name or email is missing or 'Unknown'/'No email', use localStorage
+            if ((session.name === 'Unknown' || !session.name) && typeof window !== 'undefined') {
+                return localStorage.getItem('listener_email');
+            }
+            if ((session.email === 'No email' || !session.email) && typeof window !== 'undefined') {
+                return localStorage.getItem('listener_email');
+            }
+            return session.email;
+        }
+        // Fallback: use localStorage
+        return (typeof window !== 'undefined' ? localStorage.getItem('listener_email') : null);
+    })();
+
+    // Fix for hasJammed:
+    const hasJammed = currentlyPlayingTrack && Array.isArray(currentlyPlayingTrack.jammers) && userEmail && currentlyPlayingTrack.jammers.includes(userEmail);
+
+    return (
+        <div className="min-h-screen bg-gray-100 flex">
+            {/* Main Content */}
+            <div className="flex-1">
+                {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+                {prominentToast && <ProminentToast message={prominentToast} onClose={() => setProminentToast(null)} />}
+                <div className="bg-white rounded-lg shadow p-3">
+                    <div className="flex justify-between items-center mb-2">
+                        <h1 className="text-lg font-bold">Andre Too</h1>
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-xs">{connected ? 'Connected' : 'Disconnected'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Master-only controls region */}
+                    {isMaster && (
+                        <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded flex items-center gap-3 text-sm">
+                            <span className="font-semibold text-blue-700">Master Controls:</span>
+                            <button
+                                onClick={handleLoadRandomLiked}
+                                className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 disabled:opacity-50 text-xs font-medium"
+                                disabled={loadingRandomLiked}
+                            >
+                                {loadingRandomLiked ? 'Loading...' : 'Load 10 Random Liked Tracks'}
+                            </button>
+                            <span className="ml-4 text-gray-500">Playback:</span>
+                            <button
+                                className="ml-1 px-2 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200 disabled:opacity-50 text-xs font-medium border border-green-200"
+                                onClick={handlePlay}
+                                disabled={mode === 'master_play'}
+                                title="Master Play"
+                            >
+                                ▶️
+                            </button>
+                            <button
+                                className="ml-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:opacity-50 text-xs font-medium border border-yellow-200"
+                                onClick={handlePause}
+                                disabled={mode === 'master_pause'}
+                                title="Master Pause"
+                            >
+                                ⏸️
+                            </button>
+                            <button
+                                className="ml-1 px-2 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200 disabled:opacity-50 text-xs font-medium border border-red-200"
+                                onClick={handleMasterSkip}
+                                disabled={!currentlyPlayingTrack || tracks.length === 0}
+                                title="Skip to Next Track"
+                            >
+                                ⏭️ Skip
+                            </button>
+                            <span className="ml-2 text-xs text-gray-400">{mode === 'master_play' ? 'Playing' : 'Paused'}</span>
+                        </div>
+                    )}
+
+                    {/* Currently Playing Track Section */}
+                    {currentlyPlayingTrack && (
+                        <div className="flex items-start gap-4 mb-4 p-3 bg-gradient-to-r from-blue-100 to-blue-200 rounded-lg shadow-lg relative min-h-[120px]">
+                            {currentlyPlayingTrack.albumArtUrl ? (
+                                <img
+                                    src={currentlyPlayingTrack.albumArtUrl}
+                                    alt={currentlyPlayingTrack.album}
+                                    className="w-28 h-28 object-cover rounded-lg shadow"
+                                />
+                            ) : (
+                                <div className="w-28 h-28 bg-gray-300 rounded-lg shadow flex items-center justify-center">
+                                    <span className="text-gray-500 text-3xl">🎵</span>
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start">
+                                    <div className="min-w-0">
+                                        <div className="text-base font-bold mb-0.5 truncate">
+                                            {currentlyPlayingTrack.name || currentlyPlayingTrack.spotifyUri || 'Unknown Track'}
+                                        </div>
+                                        {currentlyPlayingTrack.artist && (
+                                            <div className="text-xs text-gray-700 mb-0.5 truncate">{currentlyPlayingTrack.artist}</div>
+                                        )}
+                                        {currentlyPlayingTrack.album && (
+                                            <div className="text-xs text-gray-500 truncate">{currentlyPlayingTrack.album}</div>
+                                        )}
+                                        {currentlyPlayingTrack.spotifyName && (
+                                            <div className="text-[10px] text-gray-400 mt-0.5 truncate">Submitted by: {currentlyPlayingTrack.spotifyName}</div>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2 items-center absolute right-4 top-4">
+                                        <button
+                                            className={`text-xl px-2 py-2 rounded text-yellow-800 hover:bg-yellow-100`}
+                                            title="Jam"
+                                            onClick={() => handleJam(currentlyPlayingTrack)}
+                                        >
+                                            {hasJammed ? '👎' : '👍'}
+                                        </button>
+                                        <button
+                                            className="text-xl px-2 py-2 rounded hover:bg-yellow-100"
+                                            title="Airhorn"
+                                            onClick={() => setAirhornModalOpen(true)}
+                                        >
+                                            📯
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs text-gray-600 flex items-center gap-1">
+                                        Jams: <JamCount count={Array.isArray(currentlyPlayingTrack.jammers) ? currentlyPlayingTrack.jammers.length : 0} />
+                                    </span>
+                                </div>
+                                {/* Progress bar at the bottom */}
+                                {currentlyPlayingTrack.progress && currentlyPlayingTrack.progress.duration_ms > 0 && (
+                                    <div className="mt-3">
+                                        <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                                            <span>Progress</span>
+                                            <span>
+                                                {Math.floor((currentlyPlayingTrack.progress.position_ms || 0) / 60000)}:{((currentlyPlayingTrack.progress.position_ms || 0) % 60000 / 1000).toFixed(0).padStart(2, '0')} /
+                                                {Math.floor((currentlyPlayingTrack.progress.duration_ms || 0) / 60000)}:{((currentlyPlayingTrack.progress.duration_ms || 0) % 60000 / 1000).toFixed(0).padStart(2, '0')}
+                                            </span>
+                                        </div>
+                                        <div className="w-full h-1 bg-gray-200 rounded">
+                                            <div
+                                                className="h-1 bg-blue-500 rounded"
+                                                style={{ width: `${(currentlyPlayingTrack.progress.position_ms / currentlyPlayingTrack.progress.duration_ms) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Distinct area for submit track and track table, now fills vertical space */}
+                    <div className="bg-white rounded-lg shadow border border-gray-200 p-3 mb-6 flex flex-col h-full min-h-0" style={{height: 'calc(100vh - 64px)'}}>
+                        {/* Add Track Section (compact, no extra margin) */}
+                        <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                                placeholder="Enter Spotify Track URI"
+                            value={trackId}
+                            onChange={e => setTrackId(e.target.value)}
+                                className="border rounded px-2 py-1 w-2/3 text-xs"
+                        />
+                        <button
+                            onClick={submitTrack}
+                                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                        >
+                            Submit Track
+                        </button>
+                    </div>
+                        <div className="bg-gray-50 rounded p-2 flex-1 min-h-0 overflow-y-auto mt-2">
+                            {tracks.length === 0 ? (
+                                <div className="text-gray-500">No tracks submitted yet.</div>
+                            ) : (
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr>
+                                            <th className="w-12 p-1">Art</th>
+                                            <th className="p-1">Track</th>
+                                            <th className="w-24 p-1">Submitted By</th>
+                                            <th className="w-12 p-1">Jams</th>
+                                            <th className="w-16 p-1"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {tracks.map((track, index) => {
+                                            // Determine if the current user has jammed the track
+                                            const hasJammedRow = Array.isArray(track.jammers) && userEmail && track.jammers.includes(userEmail);
+                                            return (
+                                                <tr key={index} className="border-b last:border-b-0">
+                                                    <td className="py-1 align-middle p-1">
+                                                        {track.albumArtUrl ? (
+                                                            <img
+                                                                src={track.albumArtUrl}
+                                                                alt={track.album}
+                                                                className="w-10 h-10 object-cover rounded"
+                                                                title={track.album || ''}
+                                                            />
+                                                        ) : null}
+                                                    </td>
+                                                    <td className="py-1 align-middle p-1">
+                                                        <div className="font-semibold text-xs truncate">
+                                                            {track.name || track.spotifyUri}
+                                                        </div>
+                                                        {track.artist && (
+                                                            <div className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                                                {track.artist}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-1 align-middle p-1">
+                                                        {track.spotifyName && (
+                                                            <span className="text-[10px] text-gray-700 truncate">{track.spotifyName}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-1 align-middle p-1">
+                                                        <JamCount count={Array.isArray(track.jammers) ? track.jammers.length : 0} />
+                                                    </td>
+                                                    <td className="py-1 align-middle p-1">
+                                                        <div className="flex flex-row gap-1 items-center">
+                                                            <button
+                                                                className={`text-base px-1 py-1 rounded text-yellow-800 hover:bg-yellow-100`}
+                                                                title="Jam"
+                                                                aria-label="Thumbs Up"
+                                                                type="button"
+                                                                onClick={() => handleJam(track)}
+                                                            >
+                                                                {hasJammedRow ? '👎' : '👍'}
+                                                            </button>
+                                                            <button
+                                                                className="text-base px-1 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                                                                title="Delay"
+                                                                aria-label="Down Arrow"
+                                                                type="button"
+                                                                disabled={track.userEmail !== userEmail}
+                                                            >
+                                                                ⬇️
+                                                            </button>
+                                                            <button
+                                                                className="text-base px-1 py-1 rounded hover:bg-red-200 text-red-600"
+                                                                title="Remove Track"
+                                                                aria-label="Remove Track"
+                                                                type="button"
+                                                                onClick={() => handleRemoveTrack(track)}
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                    </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/* Sidebar - now with three tabs */}
+            <div className="w-80 bg-white shadow-lg p-3 overflow-y-auto">
+                {/* Tab bar at the top */}
+                <div className="flex-1 mb-2">
+                    <div className="flex border-b border-gray-200">
+                        <button
+                            className={`flex-1 text-xs py-2 px-0 text-center font-medium focus:outline-none transition-all
+                                ${sidebarTab === 0
+                                    ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
+                                    : 'text-gray-500 hover:text-blue-600 bg-gray-50'}
+                            `}
+                            style={{ borderTopLeftRadius: '0.5rem' }}
+                            onClick={() => setSidebarTab(0)}
+                        >Users</button>
+                        <button
+                            className={`flex-1 text-xs py-2 px-0 text-center font-medium focus:outline-none transition-all
+                                ${sidebarTab === 1
+                                    ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
+                                    : 'text-gray-500 hover:text-blue-600 bg-gray-50'}
+                            `}
+                            onClick={() => setSidebarTab(1)}
+                        >History</button>
+                        <button
+                            className={`flex-1 text-xs py-2 px-0 text-center font-medium focus:outline-none transition-all
+                                ${sidebarTab === 2
+                                    ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
+                                    : 'text-gray-500 hover:text-blue-600 bg-gray-50'}
+                            `}
+                            style={{ borderTopRightRadius: '0.5rem' }}
+                            onClick={() => setSidebarTab(2)}
+                        >Plays</button>
+                    </div>
+                </div>
+                {/* Title below tab bar */}
+                <h2 className="text-lg font-bold text-gray-800 mb-2">
+                    {sidebarTab === 0 ? 'Connected Users' : sidebarTab === 1 ? 'Event History' : 'Play History'}
+                </h2>
+                {/* Sidebar content below */}
+                {sidebarTab === 1 ? (
+                    <div className="space-y-2">
+                        {history.length === 0 ? (
+                            <div className="text-gray-500 text-xs">No events yet</div>
+                        ) : (
+                            <ul className="space-y-1">
+                                {history.slice().reverse().map((event, idx) => (
+                                    <li key={idx} className="p-2 rounded border bg-gray-50 border-gray-200">
+                                        <div className="text-[10px] text-gray-500 mb-1">
+                                            {new Date(event.timestamp).toLocaleString()}
+                                        </div>
+                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                            {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                        </div>
+                                        <div className="text-xs mt-0.5">
+                                            {event.type === 'track_added' && (
+                                                <>added track <span className="font-bold">{event.details.track}</span></>
+                                            )}
+                                            {event.type === 'jam' && (
+                                                <>jammed <span className="font-bold">{event.details.track}</span></>
+                                            )}
+                                            {event.type === 'unjam' && (
+                                                <>unjammed <span className="font-bold">{event.details.track}</span></>
+                                            )}
+                                            {event.type === 'airhorn' && (
+                                                <>played airhorn <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ')}</span></>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                ) : sidebarTab === 0 ? (
+                    <div className="space-y-1">
+                        {connectedSessions.length === 0 ? (
+                            <div className="text-gray-500 text-xs">No users connected</div>
+                        ) : (
+                            connectedSessions.map((session) => {
+                                const isCurrentUser = session.sessionId === sessionId;
+                                let displayName = session.name;
+                                let displayEmail = session.email;
+                                // If this is the current user and they are a listener, use localStorage values
+                                if (isCurrentUser && displayName === 'Unknown' && typeof window !== 'undefined') {
+                                    displayName = localStorage.getItem('listener_name') || displayName;
+                                    displayEmail = localStorage.getItem('listener_email') || displayEmail;
+                                }
+                                return (
+                                    <div
+                                        key={session.sessionId}
+                                        className={`p-2 rounded border ${session.isMaster ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}${isCurrentUser ? ' ring-2 ring-blue-400' : ''}`}
+                                    >
+                                        <div className="flex items-center justify-between mb-0.5">
+                                            <span className="font-semibold text-xs text-gray-800 truncate">
+                                                {displayName}
+                                                {session.isMaster && (
+                                                    <span className="ml-1 text-blue-600 text-[10px]">👑 Master</span>
+                                                )}
+                                                {isCurrentUser && <span className="ml-1 text-green-600 text-[10px]">(You)</span>}
+                                            </span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-500 truncate">
+                                            {displayEmail}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {playHistory.length === 0 ? (
+                            <div className="text-gray-500 text-xs">No tracks played yet</div>
+                        ) : (
+                            <ul className="space-y-1">
+                                {playHistory.slice().reverse().map((entry, idx) => (
+                                    <li key={idx} className="flex items-center gap-2 p-2 rounded border bg-gray-50 border-gray-200">
+                                        {entry.track.albumArtUrl ? (
+                                            <img src={entry.track.albumArtUrl} alt={entry.track.album || ''} className="w-8 h-8 object-cover rounded" />
+                                        ) : (
+                                            <div className="w-8 h-8 bg-gray-300 rounded flex items-center justify-center text-lg">🎵</div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-xs truncate">{entry.track.name || entry.track.spotifyUri}</div>
+                                            <div className="text-[10px] text-gray-500 truncate">{entry.track.artist}</div>
+                                            <div className="text-[10px] text-gray-400 truncate">
+                                                Played by: {entry.startedBy || 'Unknown'}
+                                                <span className="ml-2">{new Date(entry.timestamp).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+            </div>
+            <AirhornModal open={airhornModalOpen} onClose={() => setAirhornModalOpen(false)} onSelect={handleSendAirhorn} />
+        </div>
+    );
+} 
