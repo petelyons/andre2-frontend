@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function Login() {
+function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -119,4 +119,12 @@ export default function Login() {
             </div>
         </div>
     );
-} 
+}
+
+export default function Login() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <LoginContent />
+        </Suspense>
+    );
+}
