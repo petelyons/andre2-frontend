@@ -23,7 +23,7 @@ function HomeContent() {
       router.push('/login');
       return;
     }
-    fetch(`http://localhost:3001/api/session/${sessionId}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${sessionId}`)
       .then(res => {
         console.log('[Home] Backend /api/session response status:', res.status);
         return res.json();

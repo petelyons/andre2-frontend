@@ -24,7 +24,7 @@ function AirhornModal({ open, onClose, onSelect }: { open: boolean, onClose: () 
     if (open) {
       setLoading(true);
       setError(null);
-      fetch('http://localhost:3001/api/airhorns')
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/airhorns`)
         .then(res => res.json())
         .then(data => {
           setAirhorns(Array.isArray(data.airhorns) ? data.airhorns : []);
@@ -134,7 +134,7 @@ export default function Main() {
             return;
         }
         
-        const ws = new WebSocket('ws://localhost:3002');
+        const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002');
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -183,7 +183,7 @@ export default function Main() {
                         const listenerName = localStorage.getItem('listener_name');
                         const listenerEmail = localStorage.getItem('listener_email');
                         if (listenerName && listenerEmail) {
-                            fetch('http://localhost:3001/api/listener-login', {
+                            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listener-login`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ name: listenerName, email: listenerEmail })
@@ -235,7 +235,7 @@ export default function Main() {
             router.push('/login');
             return;
         }
-        fetch(`http://localhost:3001/api/session/${sessionId}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${sessionId}`)
             .then(res => res.json())
             .then(data => {
                 if (!data || !data.loggedIn) {
@@ -283,7 +283,7 @@ export default function Main() {
             return;
         }
         try {
-            const res = await fetch('http://localhost:3001/api/tracks', {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tracks`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -340,7 +340,7 @@ export default function Main() {
         setLoadingRandomLiked(true);
         try {
             const sessionId = localStorage.getItem('sessionId');
-            const res = await fetch('http://localhost:3001/api/master-random-liked', {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/master-random-liked`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId }),

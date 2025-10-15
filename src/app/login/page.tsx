@@ -11,7 +11,7 @@ function LoginContent() {
         // If already logged in, redirect to /main
         const sessionId = localStorage.getItem('sessionId');
         if (sessionId) {
-            fetch(`http://localhost:3001/api/session/${sessionId}`)
+            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${sessionId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.loggedIn) {
@@ -24,7 +24,7 @@ function LoginContent() {
         if (searchParams) {
             const code = searchParams.get('code');
             if (code) {
-                fetch(`http://localhost:3001/api/spotify/callback?code=${code}`)
+                fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/spotify/callback?code=${code}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.access_token) {
@@ -40,7 +40,7 @@ function LoginContent() {
     }, [searchParams, router]);
 
     const handleSpotifyLogin = () => {
-        window.location.href = 'http://localhost:3001/api/spotify/login';
+        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/login`;
     };
 
     // Listener login state and handler
@@ -55,7 +55,7 @@ function LoginContent() {
             return;
         }
         try {
-            const res = await fetch('http://localhost:3001/api/listener-login', {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listener-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: listenerName, email: listenerEmail })
