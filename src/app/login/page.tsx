@@ -20,21 +20,12 @@ function LoginContent() {
                     }
                 });
         }
-        // Handle Spotify callback with code
+        // Handle Spotify callback redirect (Spotify redirects with sessionId)
         if (searchParams) {
-            const code = searchParams.get('code');
-            if (code) {
-                fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/spotify/callback?code=${code}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.access_token) {
-                            localStorage.setItem('spotify_access_token', data.access_token);
-                            localStorage.setItem('spotify_refresh_token', data.refresh_token);
-                            router.push('/main');
-                        } else {
-                            alert('Failed to get Spotify tokens');
-                        }
-                    });
+            const sessionId = searchParams.get('sessionId');
+            if (sessionId) {
+                localStorage.setItem('sessionId', sessionId);
+                router.push('/main');
             }
         }
     }, [searchParams, router]);
