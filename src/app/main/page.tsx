@@ -123,62 +123,100 @@ export default function Main() {
     // WebSocket connect logic with auto-reconnect
     const connectWebSocket = useCallback(() => {
         const sessionId = localStorage.getItem('sessionId');
+        console.log('=== CONNECTING TO WEBSOCKET ===', {
+            sessionId,
+            wsUrl: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002',
+            currentState: wsRef.current?.readyState,
+        });
+        
         // Only close if we have a different connection or if it's in a closing/closed state
         if (wsRef.current && (wsRef.current.readyState === WebSocket.CLOSED || wsRef.current.readyState === WebSocket.CLOSING)) {
+            console.log('Closing old WebSocket connection');
             wsRef.current.close();
             wsRef.current = null;
         }
         
         // Don't create a new connection if we already have an open one
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            console.log('WebSocket already open, skipping reconnect');
             return;
         }
         
-        const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002');
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+        console.log(`Creating new WebSocket connection to: ${wsUrl}`);
+        const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
+            console.log('=== WEBSOCKET CONNECTED ===');
             setConnected(true);
             setReconnectAttempts(0);
+            
             // Send login message with sessionId
             if (sessionId) {
+                console.log('Sending login message', { sessionId });
                 ws.send(JSON.stringify({ type: 'login', userId: sessionId }));
+            } else {
+                console.warn('No sessionId found in localStorage!');
             }
+            
             // Request the track list when the connection opens
+            console.log('Requesting tracks list');
             ws.send(JSON.stringify({ type: 'get_tracks' }));
+            
             // Request the session list when the connection opens
+            console.log('Requesting sessions list');
             ws.send(JSON.stringify({ type: 'get_sessions' }));
         };
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                console.log('=== WEBSOCKET MESSAGE RECEIVED ===', { type: data.type });
+                
                 switch (data.type) {
+                    case 'login_success':
+                        console.log('Login successful!', data);
+                        break;
                     case 'tracks_list':
+                        console.log('Tracks list received', { count: data.tracks?.length });
                         setTracks(data.tracks);
                         break;
                     case 'mode':
+                        console.log('Mode update received', {
+                            mode: data.mode,
+                            hasCurrentTrack: !!data.currentlyPlayingTrack,
+                            masterUserSessionId: data.masterUserSessionId,
+                        });
                         setMode(data.mode);
                         setCurrentlyPlayingTrack(data.currentlyPlayingTrack || null);
                         setMasterUserSessionId(data.masterUserSessionId || null);
-                        console.log('Mode message received:', data);
                         break;
                     case 'session_mode':
+                        console.log('Session mode received', { sessionMode: data.sessionMode });
                         setSessionMode(data.sessionMode);
                         break;
                     case 'sessions_list':
+                        console.log('Sessions list received', { count: data.sessions?.length });
                         setConnectedSessions(data.sessions || []);
                         break;
                     case 'play_airhorn':
+                        console.log('Airhorn play command received', { airhorn: data.airhorn });
                         if (data.airhorn) {
                             const audio = new window.Audio(`/airhorns/${data.airhorn}.mp3`);
                             audio.play();
                         }
                         break;
                     case 'history':
+                        console.log('History received', { count: data.history?.length });
                         setHistory(Array.isArray(data.history) ? data.history : []);
                         break;
+                    case 'play_history':
+                        console.log('Play history received', { count: data.playHistory?.length });
+                        setPlayHistory(Array.isArray(data.playHistory) ? data.playHistory : []);
+                        break;
                     case 'login_error':
+                        console.error('Login error received', data);
                         // If listener info is available, auto-relogin
                         const listenerName = localStorage.getItem('listener_name');
                         const listenerEmail = localStorage.getItem('listener_email');
@@ -206,49 +244,86 @@ export default function Main() {
                             router.push('/login');
                         }
                         break;
+                    default:
+                        console.log('Unknown message type received:', data.type);
                 }
             } catch (error) {
-                console.error('Error processing message:', error);
+                console.error('Error processing WebSocket message:', error);
             }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+            console.log('=== WEBSOCKET CLOSED ===', {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+                reconnectAttempts,
+            });
             setConnected(false);
+            
             // Auto-reconnect with exponential backoff (max 10s)
             const nextDelay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            console.log(`Will reconnect in ${nextDelay}ms`);
             setReconnectAttempts((prev) => prev + 1);
+            
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             reconnectTimeoutRef.current = setTimeout(() => {
+                console.log('Attempting reconnect...');
                 connectWebSocket();
             }, nextDelay);
         };
-        
+
         ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
+            console.error('=== WEBSOCKET ERROR ===', error);
         };
     }, [reconnectAttempts]);
 
     useEffect(() => {
+        console.log('=== MAIN PAGE MOUNTED ===');
+        
         // Check if user is logged in
         const sessionId = localStorage.getItem('sessionId');
+        console.log('Checking session...', { 
+            hasSessionId: !!sessionId,
+            sessionId,
+        });
+        
         if (!sessionId) {
+            console.warn('No sessionId found, redirecting to login');
             router.push('/login');
             return;
         }
+        
+        console.log('Verifying session with backend...');
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${sessionId}`)
             .then(res => res.json())
             .then(data => {
+                console.log('Session verification response:', data);
                 if (!data || !data.loggedIn) {
+                    console.warn('Session not valid, redirecting to login');
                     router.push('/login');
+                } else {
+                    console.log('Session valid!');
                 }
             })
-            .catch(() => {
+            .catch((error) => {
+                console.error('Session verification failed:', error);
                 router.push('/login');
             });
+            
+        console.log('Initiating WebSocket connection...');
         connectWebSocket();
+        
         return () => {
-            if (wsRef.current) wsRef.current.close();
-            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            console.log('=== MAIN PAGE UNMOUNTING ===');
+            if (wsRef.current) {
+                console.log('Closing WebSocket on unmount');
+                wsRef.current.close();
+            }
+            if (reconnectTimeoutRef.current) {
+                console.log('Clearing reconnect timeout');
+                clearTimeout(reconnectTimeoutRef.current);
+            }
         };
     }, []); // Only run once on mount
 
