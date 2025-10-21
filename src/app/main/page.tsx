@@ -123,9 +123,13 @@ export default function Main() {
     // WebSocket connect logic with auto-reconnect
     const connectWebSocket = useCallback(() => {
         const sessionId = localStorage.getItem('sessionId');
+        // Construct WebSocket URL from API URL
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const wsUrl = apiUrl.replace(/^http/, 'ws') + '/websocket';
+        
         console.log('=== CONNECTING TO WEBSOCKET ===', {
             sessionId,
-            wsUrl: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002',
+            wsUrl,
             currentState: wsRef.current?.readyState,
         });
         
@@ -142,7 +146,6 @@ export default function Main() {
             return;
         }
         
-        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
         console.log(`Creating new WebSocket connection to: ${wsUrl}`);
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;

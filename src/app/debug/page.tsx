@@ -117,7 +117,9 @@ export default function DebugPage() {
         setWsStatus('connecting');
         
         try {
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+            // Construct WebSocket URL from API URL
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+            const wsUrl = apiUrl.replace(/^http/, 'ws') + '/websocket';
             addLog('info', `Connecting to WebSocket: ${wsUrl}`);
             
             const ws = new WebSocket(wsUrl);
@@ -270,7 +272,10 @@ export default function DebugPage() {
                         <h2 className="font-semibold mb-2">Environment:</h2>
                         <div className="text-sm space-y-1">
                             <p><strong>API URL:</strong> {process.env.NEXT_PUBLIC_API_URL || 'NOT SET'}</p>
-                            <p><strong>WS URL:</strong> {process.env.NEXT_PUBLIC_WS_URL || 'NOT SET'}</p>
+                            <p><strong>WS URL:</strong> {(() => {
+                                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+                                return apiUrl.replace(/^http/, 'ws') + '/websocket';
+                            })()}</p>
                             <p><strong>WebSocket Status:</strong> <span className={`font-semibold ${
                                 wsStatus === 'connected' ? 'text-green-600' :
                                 wsStatus === 'connecting' ? 'text-yellow-600' :
