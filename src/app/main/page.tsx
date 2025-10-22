@@ -119,6 +119,7 @@ export default function Main() {
     // Add sidebar tab state: 0 = users, 1 = event history, 2 = play history
     const [sidebarTab, setSidebarTab] = useState(0);
     const [prominentToast, setProminentToast] = useState<string | null>(null);
+    const [canTakeMasterControl, setCanTakeMasterControl] = useState(false);
 
     // WebSocket connect logic with auto-reconnect
     const connectWebSocket = useCallback(() => {
@@ -190,10 +191,12 @@ export default function Main() {
                             mode: data.mode,
                             hasCurrentTrack: !!data.currentlyPlayingTrack,
                             masterUserSessionId: data.masterUserSessionId,
+                            canTakeMasterControl: data.canTakeMasterControl,
                         });
                         setMode(data.mode);
                         setCurrentlyPlayingTrack(data.currentlyPlayingTrack || null);
                         setMasterUserSessionId(data.masterUserSessionId || null);
+                        setCanTakeMasterControl(data.canTakeMasterControl || false);
                         break;
                     case 'session_mode':
                         console.log('Session mode received', { sessionMode: data.sessionMode });
@@ -395,6 +398,7 @@ export default function Main() {
     const handlePlay = () => handleWsSend({ type: 'master_play' });
     const handlePause = () => handleWsSend({ type: 'master_pause' });
     const isMaster = sessionId && masterUserSessionId && sessionId === masterUserSessionId;
+    const handleTakeMasterControl = () => sessionId && handleWsSend({ type: 'take_master_control', sessionId });
     // Session Play and Pause controls
     const handleSessionPlay = () => sessionId && handleWsSend({ type: 'session_play', sessionId });
     const handleSessionPause = () => sessionId && handleWsSend({ type: 'session_pause', sessionId });
@@ -563,6 +567,23 @@ export default function Main() {
                                 ⏭️ Skip
                             </button>
                             <span className="ml-2 text-xs text-gray-400">{mode === 'master_play' ? 'Playing' : 'Paused'}</span>
+                        </div>
+                    )}
+
+                    {/* Backdoor controls for authorized users who are not master */}
+                    {!isMaster && canTakeMasterControl && (
+                        <div className="mb-6 p-3 bg-orange-50 border border-orange-200 rounded flex items-center gap-3 text-sm">
+                            <span className="font-semibold text-orange-700">Playback Controls:</span>
+                            <button
+                                className="px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-bold"
+                                onClick={handleTakeMasterControl}
+                                title="Take control of master playback"
+                            >
+                                👑 Take Master Control
+                            </button>
+                            <span className="ml-2 text-xs text-gray-500">
+                                You have permission to take control
+                            </span>
                         </div>
                     )}
 
