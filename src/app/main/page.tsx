@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 
 function Toast({ message, onClose }: { message: string, onClose: () => void }) {
     useEffect(() => {
-        const timer = setTimeout(onClose, 3000);
+        const timer = setTimeout(onClose, 1500);
         return () => clearTimeout(timer);
     }, [onClose]);
     return (
-        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow z-50 animate-fade-in">
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow z-50 animate-fade-in cursor-pointer" onClick={onClose}>
             {message}
         </div>
     );
@@ -119,6 +119,8 @@ export default function Main() {
     // Add sidebar tab state: 0 = users, 1 = event history, 2 = play history
     const [sidebarTab, setSidebarTab] = useState(0);
     const [prominentToast, setProminentToast] = useState<string | null>(null);
+    const closeToast = useCallback(() => setToast(null), []);
+    const closeProminentToast = useCallback(() => setProminentToast(null), []);
     const [canTakeMasterControl, setCanTakeMasterControl] = useState(false);
 
     // WebSocket connect logic with auto-reconnect
@@ -517,8 +519,8 @@ export default function Main() {
         <div className="min-h-screen bg-gray-100 flex">
             {/* Main Content */}
             <div className="flex-1">
-                {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-                {prominentToast && <ProminentToast message={prominentToast} onClose={() => setProminentToast(null)} />}
+                {toast && <Toast message={toast} onClose={closeToast} />}
+                {prominentToast && <ProminentToast message={prominentToast} onClose={closeProminentToast} />}
                 <div className="bg-white rounded-lg shadow p-3">
                     <div className="flex justify-between items-center mb-2">
                         <h1 className="text-lg font-bold">Andre Too</h1>
