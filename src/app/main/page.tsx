@@ -122,6 +122,7 @@ export default function Main() {
     const closeToast = useCallback(() => setToast(null), []);
     const closeProminentToast = useCallback(() => setProminentToast(null), []);
     const [canTakeMasterControl, setCanTakeMasterControl] = useState(false);
+    const [fallbackInfo, setFallbackInfo] = useState<{ url: string; name: string; trackCount: number } | null>(null);
 
     // WebSocket connect logic with auto-reconnect
     const connectWebSocket = useCallback(() => {
@@ -199,6 +200,7 @@ export default function Main() {
                         setCurrentlyPlayingTrack(data.currentlyPlayingTrack || null);
                         setMasterUserSessionId(data.masterUserSessionId || null);
                         setCanTakeMasterControl(data.canTakeMasterControl || false);
+                        setFallbackInfo(data.fallbackPlaylist || null);
                         break;
                     case 'session_mode':
                         console.log('Session mode received', { sessionMode: data.sessionMode });
@@ -381,9 +383,10 @@ export default function Main() {
                     setToast('That track is already in the Play Queue.');
                 }
             }
-            setTrackId('');
         } catch (error) {
             alert('Failed to submit track');
+        } finally {
+            setTrackId('');
         }
     };
 
@@ -532,6 +535,22 @@ export default function Main() {
                         </div>
                     </div>
 
+                    {fallbackInfo && (
+                        <div className="text-xs text-gray-600 mb-2">
+                            <span className="font-semibold">Fallback:</span>{' '}
+                            <a
+                                href={fallbackInfo.url && fallbackInfo.url.startsWith('spotify:playlist:') ? `https://open.spotify.com/playlist/${fallbackInfo.url.split(':')[2]}` : (fallbackInfo.url || '#')}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 underline"
+                                title="Open fallback playlist"
+                            >
+                                {fallbackInfo.name}
+                            </a>{' '}
+                            <span className="text-gray-400">({fallbackInfo.trackCount})</span>
+                        </div>
+                    )}
+
                     {/* Master-only controls region */}
                     {isMaster && (
                         <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded flex items-center gap-3 text-sm">
@@ -563,7 +582,7 @@ export default function Main() {
                             <button
                                 className="ml-1 px-2 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200 disabled:opacity-50 text-xs font-medium border border-red-200"
                                 onClick={handleMasterSkip}
-                                disabled={!currentlyPlayingTrack || tracks.length === 0}
+                                disabled={!currentlyPlayingTrack || (!(tracks.length > 0 || !!fallbackInfo))}
                                 title="Skip to Next Track"
                             >
                                 ⏭️ Skip
