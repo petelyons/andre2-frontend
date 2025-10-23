@@ -526,7 +526,10 @@ export default function Main() {
                 {prominentToast && <ProminentToast message={prominentToast} onClose={closeProminentToast} />}
                 <div className="bg-white rounded-lg shadow p-3">
                     <div className="flex justify-between items-center mb-2">
-                        <h1 className="text-lg font-bold">Andre Too</h1>
+                        <div className="flex items-center gap-2">
+                            <img src="/Andre2.png" alt="Andre Too" className="h-8 w-8 rounded" />
+                            <h1 className="text-lg font-bold">Andre Too</h1>
+                        </div>
                         <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2 mb-0.5">
                                 <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
