@@ -768,6 +768,7 @@ export default function Main() {
                                                                 aria-label="Down Arrow"
                                                                 type="button"
                                                                 disabled={track.userEmail !== userEmail}
+                                                                onClick={() => sessionId && handleWsSend({ type: 'delay_track', spotifyUri: track.spotifyUri, sessionId })}
                                                             >
                                                                 ⬇️
                                                             </button>
