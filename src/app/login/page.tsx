@@ -89,29 +89,35 @@ function LoginContent() {
                     <span className="mx-2 text-gray-400">or</span>
                     <div className="flex-grow border-t border-gray-300" />
                 </div>
-                <form className="space-y-4" onSubmit={handleListenerLogin}>
-                    <input
-                        type="text"
-                        placeholder="Listener Name"
-                        value={listenerName}
-                        onChange={e => setListenerName(e.target.value)}
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <input
-                        type="email"
-                        placeholder="Email"
-                        value={listenerEmail}
-                        onChange={e => setListenerEmail(e.target.value)}
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    {listenerError && <div className="text-red-500 text-sm">{listenerError}</div>}
-                    <button
-                        type="submit"
-                        className="w-full py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600"
-                    >
-                        Login as Listener Only
-                    </button>
-                </form>
+                <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-700">Login as Offline Contributor</h3>
+                    <p className="text-sm text-gray-600">
+                        Use this option to add tracks to the queue and like songs. Note: You won't be able to play music with this login method.
+                    </p>
+                    <form className="space-y-4" onSubmit={handleListenerLogin}>
+                        <input
+                            type="text"
+                            placeholder="User Name"
+                            value={listenerName}
+                            onChange={e => setListenerName(e.target.value)}
+                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        />
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={listenerEmail}
+                            onChange={e => setListenerEmail(e.target.value)}
+                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        />
+                        {listenerError && <div className="text-red-500 text-sm">{listenerError}</div>}
+                        <button
+                            type="submit"
+                            className="w-full py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600"
+                        >
+                            Login as Offline Contributor
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );
