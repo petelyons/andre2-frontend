@@ -745,7 +745,9 @@ export default function Main() {
                                                     </td>
                                                     <td className="py-1 align-middle p-1">
                                                         {track.spotifyName && (
-                                                            <span className="text-[10px] text-gray-700 truncate">{track.spotifyName}</span>
+                                                            <span className={`text-[10px] truncate ${track.isFallback ? 'text-blue-600 italic' : 'text-gray-700'}`}>
+                                                                {track.spotifyName}
+                                                            </span>
                                                         )}
                                                     </td>
                                                     <td className="py-1 align-middle p-1">
@@ -762,25 +764,29 @@ export default function Main() {
                                                             >
                                                                 {hasJammedRow ? '👎' : '👍'}
                                                             </button>
-                                                            <button
-                                                                className="text-base px-1 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
-                                                                title="Delay"
-                                                                aria-label="Down Arrow"
-                                                                type="button"
-                                                                disabled={track.userEmail !== userEmail}
-                                                                onClick={() => sessionId && handleWsSend({ type: 'delay_track', spotifyUri: track.spotifyUri, sessionId })}
-                                                            >
-                                                                ⬇️
-                                                            </button>
-                                                            <button
-                                                                className="text-base px-1 py-1 rounded hover:bg-red-200 text-red-600"
-                                                                title="Remove Track"
-                                                                aria-label="Remove Track"
-                                                                type="button"
-                                                                onClick={() => handleRemoveTrack(track)}
-                                                            >
-                                                                🗑️
-                                                            </button>
+                                                            {!track.isFallback && (
+                                                                <button
+                                                                    className="text-base px-1 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                                                                    title="Delay"
+                                                                    aria-label="Down Arrow"
+                                                                    type="button"
+                                                                    disabled={track.userEmail !== userEmail}
+                                                                    onClick={() => sessionId && handleWsSend({ type: 'delay_track', spotifyUri: track.spotifyUri, sessionId })}
+                                                                >
+                                                                    ⬇️
+                                                                </button>
+                                                            )}
+                                                            {!track.isFallback && (
+                                                                <button
+                                                                    className="text-base px-1 py-1 rounded hover:bg-red-200 text-red-600"
+                                                                    title="Remove Track"
+                                                                    aria-label="Remove Track"
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveTrack(track)}
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            )}
                                     </div>
                                                     </td>
                                                 </tr>
