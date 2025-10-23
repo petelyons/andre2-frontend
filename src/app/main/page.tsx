@@ -871,85 +871,149 @@ export default function Main() {
                         {history.length === 0 ? (
                             <div className="text-gray-500 text-xs">No events yet</div>
                         ) : (
-                            <ul className="space-y-1">
-                                {history.slice().reverse().map((event, idx) => (
-                                    <li key={idx} className={`p-2 rounded border ${event.type === 'message' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                                        <div className="text-[10px] text-gray-500 mb-1">
-                                            {new Date(event.timestamp).toLocaleString()}
-                                        </div>
-                                        
-                                        {/* Message events */}
-                                        {event.type === 'message' && (
-                                            <>
-                                                <div className="font-semibold text-xs text-gray-800 truncate mb-1">
-                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
-                                                </div>
-                                                <div className="text-sm text-gray-900">{event.details.message}</div>
-                                            </>
-                                        )}
-                                        
-                                        {/* Session events */}
-                                        {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
-                                            <div className="text-xs">
-                                                <span className="font-semibold">{event.userName}</span>
-                                                <span className="text-gray-400 ml-1">({event.userEmail})</span>
-                                                <span className="ml-2">{event.type === 'user_connected' ? '🟢 connected' : '🔴 disconnected'}</span>
+                            <ul className="space-y-2">
+                                {history.slice().reverse().map((event, idx) => {
+                                    // Helper to format time ago
+                                    const getTimeAgo = (timestamp: number) => {
+                                        const seconds = Math.floor((Date.now() - timestamp) / 1000);
+                                        if (seconds < 60) return `${seconds}s ago`;
+                                        const minutes = Math.floor(seconds / 60);
+                                        if (minutes < 60) return `${minutes}m ago`;
+                                        const hours = Math.floor(minutes / 60);
+                                        if (hours < 24) return `${hours}h ago`;
+                                        return new Date(timestamp).toLocaleDateString();
+                                    };
+
+                                    return (
+                                        <li key={idx} className={`p-2 rounded-lg border shadow-sm ${
+                                            event.type === 'message' ? 'bg-blue-50 border-blue-200' : 
+                                            event.type === 'track_play' ? 'bg-green-50 border-green-200' :
+                                            event.type === 'track_skip' ? 'bg-orange-50 border-orange-200' :
+                                            'bg-gray-50 border-gray-200'
+                                        }`}>
+                                            {/* Timestamp */}
+                                            <div className="text-[10px] text-gray-500 mb-1.5">
+                                                {getTimeAgo(event.timestamp)}
                                             </div>
-                                        )}
-                                        
-                                        {/* Track play events */}
-                                        {event.type === 'track_play' && event.details.track && (
-                                            <div className="flex items-center gap-2">
-                                                {event.details.track.albumArtUrl ? (
-                                                    <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-8 h-8 object-cover rounded" />
-                                                ) : (
-                                                    <div className="w-8 h-8 bg-gray-300 rounded flex items-center justify-center text-lg">🎵</div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-semibold text-xs truncate">{event.details.track.name || event.details.track.spotifyUri}</div>
-                                                    <div className="text-[10px] text-gray-500 truncate">{event.details.track.artist}</div>
-                                                    <div className="text-[10px] text-gray-400 truncate">
-                                                        Started by: {event.userName}
+                                            
+                                            {/* Message events */}
+                                            {event.type === 'message' && (
+                                                <>
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <span className="text-lg">💬</span>
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.userName}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-sm text-gray-900 ml-6">{event.details.message}</div>
+                                                </>
+                                            )}
+                                            
+                                            {/* Session events */}
+                                            {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">{event.type === 'user_connected' ? '🟢' : '🔴'}</span>
+                                                    <div className="text-xs">
+                                                        <span className="font-semibold">{event.userName}</span>
+                                                        <span className="text-gray-600 ml-1">{event.type === 'user_connected' ? 'joined' : 'left'}</span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                        
-                                        {/* Legacy events */}
-                                        {event.type === 'track_added' && (
-                                            <>
-                                                <div className="font-semibold text-xs text-gray-800 truncate">
-                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                            )}
+                                            
+                                            {/* Track play events */}
+                                            {event.type === 'track_play' && event.details.track && (
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-lg mt-0.5">▶️</span>
+                                                    {event.details.track.albumArtUrl && (
+                                                        <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri}</div>
+                                                        <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist}</div>
+                                                        {event.details.track.album && (
+                                                            <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                        )}
+                                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                                            <span className="font-medium">Started by:</span> {event.userName}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs mt-0.5">added track <span className="font-bold">{event.details.track}</span></div>
-                                            </>
-                                        )}
-                                        {event.type === 'jam' && (
-                                            <>
-                                                <div className="font-semibold text-xs text-gray-800 truncate">
-                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                            )}
+                                            
+                                            {/* Track skip events */}
+                                            {event.type === 'track_skip' && event.details.track && (
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-lg mt-0.5">⏭️</span>
+                                                    {event.details.track.albumArtUrl && (
+                                                        <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri}</div>
+                                                        <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist}</div>
+                                                        {event.details.track.album && (
+                                                            <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                        )}
+                                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                                            <span className="font-medium">Skipped by:</span> {event.userName}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs mt-0.5">jammed <span className="font-bold">{event.details.track}</span></div>
-                                            </>
-                                        )}
-                                        {event.type === 'unjam' && (
-                                            <>
-                                                <div className="font-semibold text-xs text-gray-800 truncate">
-                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                            )}
+                                            
+                                            {/* Track added events */}
+                                            {event.type === 'track_added' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">➕</span>
+                                                    <div>
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.userName}
+                                                        </div>
+                                                        <div className="text-xs mt-0.5 text-gray-600">added <span className="font-bold">{event.details.track}</span></div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs mt-0.5">unjammed <span className="font-bold">{event.details.track}</span></div>
-                                            </>
-                                        )}
-                                        {event.type === 'airhorn' && (
-                                            <>
-                                                <div className="font-semibold text-xs text-gray-800 truncate">
-                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                            )}
+                                            
+                                            {/* Jam events */}
+                                            {event.type === 'jam' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">🔥</span>
+                                                    <div>
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.userName}
+                                                        </div>
+                                                        <div className="text-xs mt-0.5 text-gray-600">jammed <span className="font-bold">{event.details.track}</span></div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs mt-0.5">played airhorn <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ')}</span></div>
-                                            </>
-                                        )}
-                                    </li>
-                                ))}
+                                            )}
+                                            
+                                            {/* Unjam events */}
+                                            {event.type === 'unjam' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">❄️</span>
+                                                    <div>
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.userName}
+                                                        </div>
+                                                        <div className="text-xs mt-0.5 text-gray-600">unjammed <span className="font-bold">{event.details.track}</span></div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Airhorn events */}
+                                            {event.type === 'airhorn' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">📯</span>
+                                                    <div>
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.userName}
+                                                        </div>
+                                                        <div className="text-xs mt-0.5 text-gray-600">played <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ').replace(/_/g, ' ')}</span></div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
