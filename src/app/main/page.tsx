@@ -42,29 +42,34 @@ function AirhornModal({ open, onClose, onSelect }: { open: boolean, onClose: () 
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: "rgba(0,0,0,0.10)" }}>
-      <div className="bg-white rounded-lg shadow-lg px-6 py-4 max-w-xs w-full flex flex-col items-center">
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: "rgba(0,0,0,0.10)" }}>
+      <div className="bg-white rounded-lg shadow-lg px-6 py-4 max-w-2xl w-full max-h-[80vh] flex flex-col">
         <h2 className="text-lg font-bold mb-4 text-center">Choose an Airhorn</h2>
         {loading ? (
-          <div className="text-gray-500">Loading...</div>
+          <div className="text-gray-500 text-center py-8">Loading...</div>
         ) : error ? (
-          <div className="text-red-500">{error}</div>
+          <div className="text-red-500 text-center py-8">{error}</div>
         ) : (
-          <ul className="space-y-2 mb-4 w-full">
-            {airhorns.map(name => (
-              <li key={name} className="w-full">
-                <button
-                  className="w-full text-left px-4 py-2 rounded hover:bg-blue-100"
-                  onClick={() => { onSelect(name); onClose(); }}
-                >
-                  {name.replace(/-/g, ' ')}
-                </button>
-              </li>
-            ))}
-            {airhorns.length === 0 && <li className="text-gray-400 text-center">No airhorns found</li>}
-          </ul>
+          <div className="overflow-y-auto flex-1 mb-4">
+            {airhorns.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">No airhorns found</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {airhorns.map(name => (
+                  <button
+                    key={name}
+                    className="px-3 py-2 text-sm rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 transition-colors text-center truncate"
+                    onClick={() => { onSelect(name); onClose(); }}
+                    title={name.replace(/-/g, ' ').replace(/_/g, ' ')}
+                  >
+                    {name.replace(/-/g, ' ').replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
-        <button className="mt-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onClick={onClose}>Cancel</button>
+        <button className="mt-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition-colors" onClick={onClose}>Cancel</button>
       </div>
     </div>
   );
@@ -116,7 +121,7 @@ export default function Main() {
     const [history, setHistory] = useState<any[]>([]);
     // Add play history state
     const [playHistory, setPlayHistory] = useState<any[]>([]);
-    // Add sidebar tab state: 0 = users, 1 = event history, 2 = play history
+    // Add sidebar tab state: 0 = history, 1 = users, 2 = play history
     const [sidebarTab, setSidebarTab] = useState(0);
     const [prominentToast, setProminentToast] = useState<string | null>(null);
     const closeToast = useCallback(() => setToast(null), []);
@@ -812,7 +817,7 @@ export default function Main() {
                             `}
                             style={{ borderTopLeftRadius: '0.5rem' }}
                             onClick={() => setSidebarTab(0)}
-                        >Users</button>
+                        >History</button>
                         <button
                             className={`flex-1 text-xs py-2 px-0 text-center font-medium focus:outline-none transition-all
                                 ${sidebarTab === 1
@@ -820,7 +825,7 @@ export default function Main() {
                                     : 'text-gray-500 hover:text-blue-600 bg-gray-50'}
                             `}
                             onClick={() => setSidebarTab(1)}
-                        >History</button>
+                        >Users</button>
                         <button
                             className={`flex-1 text-xs py-2 px-0 text-center font-medium focus:outline-none transition-all
                                 ${sidebarTab === 2
@@ -834,43 +839,121 @@ export default function Main() {
                 </div>
                 {/* Title below tab bar */}
                 <h2 className="text-lg font-bold text-gray-800 mb-2">
-                    {sidebarTab === 0 ? 'Connected Users' : sidebarTab === 1 ? 'Event History' : 'Play History'}
+                    {sidebarTab === 0 ? 'Event History' : sidebarTab === 1 ? 'Connected Users' : 'Play History'}
                 </h2>
                 {/* Sidebar content below */}
-                {sidebarTab === 1 ? (
+                {sidebarTab === 0 ? (
                     <div className="space-y-2">
+                        {/* Message input */}
+                        <form className="flex gap-2" onSubmit={(e) => {
+                            e.preventDefault();
+                            const input = e.currentTarget.elements.namedItem('message') as HTMLInputElement;
+                            const message = input.value.trim();
+                            if (message && sessionId) {
+                                handleWsSend({ type: 'history_message', message, sessionId });
+                                input.value = '';
+                            }
+                        }}>
+                            <input
+                                type="text"
+                                name="message"
+                                placeholder="Post a message..."
+                                className="flex-1 px-2 py-1 border rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                maxLength={200}
+                            />
+                            <button
+                                type="submit"
+                                className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                            >
+                                Post
+                            </button>
+                        </form>
                         {history.length === 0 ? (
                             <div className="text-gray-500 text-xs">No events yet</div>
                         ) : (
                             <ul className="space-y-1">
                                 {history.slice().reverse().map((event, idx) => (
-                                    <li key={idx} className="p-2 rounded border bg-gray-50 border-gray-200">
+                                    <li key={idx} className={`p-2 rounded border ${event.type === 'message' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                                         <div className="text-[10px] text-gray-500 mb-1">
                                             {new Date(event.timestamp).toLocaleString()}
                                         </div>
-                                        <div className="font-semibold text-xs text-gray-800 truncate">
-                                            {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
-                                        </div>
-                                        <div className="text-xs mt-0.5">
-                                            {event.type === 'track_added' && (
-                                                <>added track <span className="font-bold">{event.details.track}</span></>
-                                            )}
-                                            {event.type === 'jam' && (
-                                                <>jammed <span className="font-bold">{event.details.track}</span></>
-                                            )}
-                                            {event.type === 'unjam' && (
-                                                <>unjammed <span className="font-bold">{event.details.track}</span></>
-                                            )}
-                                            {event.type === 'airhorn' && (
-                                                <>played airhorn <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ')}</span></>
-                                            )}
-                                        </div>
+                                        
+                                        {/* Message events */}
+                                        {event.type === 'message' && (
+                                            <>
+                                                <div className="font-semibold text-xs text-gray-800 truncate mb-1">
+                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                                </div>
+                                                <div className="text-sm text-gray-900">{event.details.message}</div>
+                                            </>
+                                        )}
+                                        
+                                        {/* Session events */}
+                                        {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
+                                            <div className="text-xs">
+                                                <span className="font-semibold">{event.userName}</span>
+                                                <span className="text-gray-400 ml-1">({event.userEmail})</span>
+                                                <span className="ml-2">{event.type === 'user_connected' ? '🟢 connected' : '🔴 disconnected'}</span>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Track play events */}
+                                        {event.type === 'track_play' && event.details.track && (
+                                            <div className="flex items-center gap-2">
+                                                {event.details.track.albumArtUrl ? (
+                                                    <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-8 h-8 object-cover rounded" />
+                                                ) : (
+                                                    <div className="w-8 h-8 bg-gray-300 rounded flex items-center justify-center text-lg">🎵</div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-xs truncate">{event.details.track.name || event.details.track.spotifyUri}</div>
+                                                    <div className="text-[10px] text-gray-500 truncate">{event.details.track.artist}</div>
+                                                    <div className="text-[10px] text-gray-400 truncate">
+                                                        Started by: {event.userName}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Legacy events */}
+                                        {event.type === 'track_added' && (
+                                            <>
+                                                <div className="font-semibold text-xs text-gray-800 truncate">
+                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                                </div>
+                                                <div className="text-xs mt-0.5">added track <span className="font-bold">{event.details.track}</span></div>
+                                            </>
+                                        )}
+                                        {event.type === 'jam' && (
+                                            <>
+                                                <div className="font-semibold text-xs text-gray-800 truncate">
+                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                                </div>
+                                                <div className="text-xs mt-0.5">jammed <span className="font-bold">{event.details.track}</span></div>
+                                            </>
+                                        )}
+                                        {event.type === 'unjam' && (
+                                            <>
+                                                <div className="font-semibold text-xs text-gray-800 truncate">
+                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                                </div>
+                                                <div className="text-xs mt-0.5">unjammed <span className="font-bold">{event.details.track}</span></div>
+                                            </>
+                                        )}
+                                        {event.type === 'airhorn' && (
+                                            <>
+                                                <div className="font-semibold text-xs text-gray-800 truncate">
+                                                    {event.userName} <span className="text-[10px] text-gray-400">({event.userEmail})</span>
+                                                </div>
+                                                <div className="text-xs mt-0.5">played airhorn <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ')}</span></div>
+                                            </>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
                         )}
                     </div>
-                ) : sidebarTab === 0 ? (
+                ) : sidebarTab === 1 ? (
                     <div className="space-y-1">
                         {connectedSessions.length === 0 ? (
                             <div className="text-gray-500 text-xs">No users connected</div>
