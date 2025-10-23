@@ -94,6 +94,7 @@ function JamCount({ count }: { count: number }) {
 }
 
 export default function Main() {
+    const [sessionId, setSessionId] = useState<string>('');
     const [trackId, setTrackId] = useState('');
     const [tracks, setTracks] = useState<any[]>([]);
     const [connected, setConnected] = useState(false);
@@ -293,24 +294,44 @@ export default function Main() {
         };
     }, [reconnectAttempts]);
 
+    // Heartbeat / ping interval
+    useEffect(() => {
+        if (!connected || !sessionId) return;
+        
+        console.log('Starting heartbeat interval');
+        const heartbeatInterval = setInterval(() => {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                console.log('Sending ping to keep session alive');
+                wsRef.current.send(JSON.stringify({ type: 'ping', sessionId }));
+            }
+        }, 30000); // Ping every 30 seconds
+        
+        return () => {
+            console.log('Stopping heartbeat interval');
+            clearInterval(heartbeatInterval);
+        };
+    }, [connected, sessionId]);
+
     useEffect(() => {
         console.log('=== MAIN PAGE MOUNTED ===');
         
         // Check if user is logged in
-        const sessionId = localStorage.getItem('sessionId');
+        const storedSessionId = localStorage.getItem('sessionId');
         console.log('Checking session...', { 
-            hasSessionId: !!sessionId,
-            sessionId,
+            hasSessionId: !!storedSessionId,
+            sessionId: storedSessionId,
         });
         
-        if (!sessionId) {
+        if (!storedSessionId) {
             console.warn('No sessionId found, redirecting to login');
             router.push('/login');
             return;
         }
         
+        setSessionId(storedSessionId); // Update state
+        
         console.log('Verifying session with backend...');
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${sessionId}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session/${storedSessionId}`)
             .then(res => res.json())
             .then(data => {
                 console.log('Session verification response:', data);
@@ -394,8 +415,6 @@ export default function Main() {
             setTrackId('');
         }
     };
-
-    const sessionId = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null;
 
     // Common WebSocket send handler
     const handleWsSend = (obj: any) => {
