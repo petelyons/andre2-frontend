@@ -20,8 +20,21 @@ function LoginContent() {
                     }
                 });
         }
-        // Handle Spotify callback redirect (Spotify redirects with sessionId)
+        // Handle Spotify callback redirect (Spotify redirects with sessionId or error)
         if (searchParams) {
+            const error = searchParams.get('error');
+            const details = searchParams.get('details');
+            
+            if (error === 'spotify_auth_failed') {
+                setSpotifyError(`Spotify login failed: ${details || 'Unknown error'}. Please try again.`);
+                return;
+            }
+            
+            if (error === 'session_not_found') {
+                setSpotifyError('Session expired. Please try logging in again.');
+                return;
+            }
+            
             const sessionId = searchParams.get('sessionId');
             if (sessionId) {
                 localStorage.setItem('sessionId', sessionId);
@@ -38,6 +51,7 @@ function LoginContent() {
     const [listenerName, setListenerName] = useState('');
     const [listenerEmail, setListenerEmail] = useState('');
     const [listenerError, setListenerError] = useState('');
+    const [spotifyError, setSpotifyError] = useState('');
     const handleListenerLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setListenerError('');
@@ -78,6 +92,11 @@ function LoginContent() {
                         <h2 className="text-3xl font-extrabold text-gray-900">Sign in</h2>
                     </div>
                 </div>
+                {spotifyError && (
+                    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded text-sm">
+                        {spotifyError}
+                    </div>
+                )}
                 <button
                     onClick={handleSpotifyLogin}
                     className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
