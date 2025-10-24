@@ -776,12 +776,12 @@ export default function Main() {
                             ) : (
                                 <table className="w-full text-left text-xs">
                                     <thead>
-                                        <tr>
-                                            <th className="w-12 p-1">Art</th>
-                                            <th className="p-1">Track</th>
-                                            <th className="w-24 p-1">Submitted By</th>
-                                            <th className="w-12 p-1">Jams</th>
-                                            <th className="w-16 p-1"></th>
+                                        <tr className="border-b border-gray-300">
+                                            <th className="w-12 p-1 border-r border-gray-200">Art</th>
+                                            <th className="p-1 border-r border-gray-200">Track</th>
+                                            <th className="w-24 p-1 border-r border-gray-200">Submitted By</th>
+                                            <th className="w-16 p-1 border-r border-gray-200">Jams</th>
+                                            <th className="w-20 p-1">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -789,7 +789,7 @@ export default function Main() {
                                             const userJamCount = getUserJamCount(track, userEmail);
                                             return (
                                                 <tr key={index} className="border-b last:border-b-0">
-                                                    <td className="py-1 align-middle p-1">
+                                                    <td className="py-1 align-middle p-1 border-r border-gray-200">
                                                         {track.albumArtUrl ? (
                                                             <img
                                                                 src={track.albumArtUrl}
@@ -799,7 +799,7 @@ export default function Main() {
                                                             />
                                                         ) : null}
                                                     </td>
-                                                    <td className="py-1 align-middle p-1">
+                                                    <td className="py-1 align-middle p-1 border-r border-gray-200">
                                                         <div className="font-semibold text-xs truncate">
                                                             {track.name || track.spotifyUri}
                                                         </div>
@@ -809,21 +809,19 @@ export default function Main() {
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="py-1 align-middle p-1">
+                                                    <td className="py-1 align-middle p-1 border-r border-gray-200">
                                                         {track.spotifyName && (
                                                             <span className={`text-[10px] truncate ${track.isFallback ? 'text-blue-600 italic' : 'text-gray-700'}`}>
                                                                 {track.spotifyName}
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="py-1 align-middle p-1">
-                                                        <JamCount count={getTotalJamCount(track)} />
-                                                    </td>
-                                                    <td className="py-1 align-middle p-1">
-                                                        <div className="flex flex-row gap-1 items-center">
+                                                    <td className="py-1 align-middle p-1 border-r border-gray-200">
+                                                        <div className="flex items-center gap-1">
+                                                            <JamCount count={getTotalJamCount(track)} />
                                                             <button
-                                                                className={`text-base px-1 py-1 rounded hover:bg-orange-100 relative ${userJamCount > 0 ? 'bg-orange-50' : ''}`}
-                                                                title={`Jam (Shift+Click to unjam)${userJamCount > 0 ? ` - You: ${userJamCount}` : ''}`}
+                                                                className={`text-sm px-1 py-0.5 rounded hover:bg-orange-100 relative ${userJamCount > 0 ? 'bg-orange-50' : ''}`}
+                                                                title={track.isFallback ? 'Add to queue & jam' : `Jam${userJamCount > 0 ? ` (You: ${userJamCount})` : ''} - Shift+Click to unjam`}
                                                                 aria-label="Jam"
                                                                 type="button"
                                                                 onClick={(e) => handleJam(track, e.shiftKey)}
@@ -835,6 +833,10 @@ export default function Main() {
                                                                     </span>
                                                                 )}
                                                             </button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-1 align-middle p-1">
+                                                        <div className="flex flex-row gap-1 items-center">
                                                             {!track.isFallback && (
                                                                 <button
                                                                     className="text-base px-1 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
