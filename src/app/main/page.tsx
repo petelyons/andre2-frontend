@@ -75,20 +75,46 @@ function AirhornModal({ open, onClose, onSelect }: { open: boolean, onClose: () 
   );
 }
 
-// JamCount component
-function JamCount({ count }: { count: number }) {
-    if (count > 50) {
-        // Arbitrary cap for flaming heart
-        return <span title={count + ' jams'}>❤️‍🔥</span>;
+// Helper function to calculate total jam count from jamCounts object
+function getTotalJamCount(track: any): number {
+    // New format: jamCounts object with email -> count
+    if (track.jamCounts && typeof track.jamCounts === 'object') {
+        return Object.values(track.jamCounts).reduce((sum: number, count: any) => sum + (count || 0), 0);
     }
-    const blue = Math.floor(count / 10);
-    const green = Math.floor((count % 10) / 5);
-    const red = count % 5;
+    // Legacy format: jammers array
+    if (Array.isArray(track.jammers)) {
+        return track.jammers.length;
+    }
+    return 0;
+}
+
+// Helper function to get user's jam count for a track
+function getUserJamCount(track: any, userEmail: string | null): number {
+    if (!userEmail) return 0;
+    if (track.jamCounts && typeof track.jamCounts === 'object') {
+        return track.jamCounts[userEmail] || 0;
+    }
+    // Legacy: jammers array (0 or 1)
+    if (Array.isArray(track.jammers) && track.jammers.includes(userEmail)) {
+        return 1;
+    }
+    return 0;
+}
+
+// JamCount component - displays flames for jams
+function JamCount({ count }: { count: number }) {
+    if (count === 0) {
+        return <span className="text-gray-400 text-xs">-</span>;
+    }
+    
+    // Show up to 5 flames, then add "+n" for additional count
+    const displayCount = Math.min(count, 5);
+    const extraCount = count > 5 ? count - 5 : 0;
+    
     return (
         <span className="flex flex-row gap-0.5 items-center" title={count + ' jams'}>
-            {Array(blue).fill(0).map((_, i) => <span key={'b'+i}>💙</span>)}
-            {Array(green).fill(0).map((_, i) => <span key={'g'+i}>💚</span>)}
-            {Array(red).fill(0).map((_, i) => <span key={'r'+i}>❤️</span>)}
+            {Array(displayCount).fill(0).map((_, i) => <span key={i}>🔥</span>)}
+            {extraCount > 0 && <span className="text-xs text-orange-600 font-semibold ml-0.5">+{extraCount}</span>}
         </span>
     );
 }
@@ -433,9 +459,14 @@ export default function Main() {
     const handleSessionPause = () => sessionId && handleWsSend({ type: 'session_pause', sessionId });
 
     // Send a 'jam' message via WebSocket
-    const handleJam = (track: any) => {
+    const handleJam = (track: any, isShiftClick: boolean = false) => {
         if (sessionId) {
-            handleWsSend({ type: 'jam', spotifyUri: track.spotifyUri, sessionId });
+            handleWsSend({ 
+                type: 'jam', 
+                spotifyUri: track.spotifyUri, 
+                sessionId,
+                unjam: isShiftClick // Shift-click to unjam
+            });
         }
     };
 
@@ -538,9 +569,6 @@ export default function Main() {
         // Fallback: use localStorage
         return (typeof window !== 'undefined' ? localStorage.getItem('listener_email') : null);
     })();
-
-    // Fix for hasJammed:
-    const hasJammed = currentlyPlayingTrack && Array.isArray(currentlyPlayingTrack.jammers) && userEmail && currentlyPlayingTrack.jammers.includes(userEmail);
 
     return (
         <div className="min-h-screen bg-gray-100 flex">
@@ -672,11 +700,11 @@ export default function Main() {
                                     </div>
                                     <div className="flex gap-2 items-center absolute right-4 top-4">
                                         <button
-                                            className={`text-xl px-2 py-2 rounded text-yellow-800 hover:bg-yellow-100`}
-                                            title="Jam"
-                                            onClick={() => handleJam(currentlyPlayingTrack)}
+                                            className={`text-xl px-2 py-2 rounded hover:bg-orange-100 ${getUserJamCount(currentlyPlayingTrack, userEmail) > 0 ? 'bg-orange-50' : ''}`}
+                                            title="Jam (Shift+Click to unjam)"
+                                            onClick={(e) => handleJam(currentlyPlayingTrack, e.shiftKey)}
                                         >
-                                            {hasJammed ? '👎' : '👍'}
+                                            🔥
                                         </button>
                                         <button
                                             className="text-xl px-2 py-2 rounded hover:bg-yellow-100"
@@ -689,7 +717,12 @@ export default function Main() {
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
                                     <span className="text-xs text-gray-600 flex items-center gap-1">
-                                        Jams: <JamCount count={Array.isArray(currentlyPlayingTrack.jammers) ? currentlyPlayingTrack.jammers.length : 0} />
+                                        Jams: <JamCount count={getTotalJamCount(currentlyPlayingTrack)} />
+                                        {getUserJamCount(currentlyPlayingTrack, userEmail) > 0 && (
+                                            <span className="text-xs text-orange-600 font-semibold ml-1">
+                                                (You: {getUserJamCount(currentlyPlayingTrack, userEmail)})
+                                            </span>
+                                        )}
                                     </span>
                                 </div>
                                 {/* Progress bar at the bottom */}
@@ -748,8 +781,7 @@ export default function Main() {
                                     </thead>
                                     <tbody>
                                         {tracks.map((track, index) => {
-                                            // Determine if the current user has jammed the track
-                                            const hasJammedRow = Array.isArray(track.jammers) && userEmail && track.jammers.includes(userEmail);
+                                            const userJamCount = getUserJamCount(track, userEmail);
                                             return (
                                                 <tr key={index} className="border-b last:border-b-0">
                                                     <td className="py-1 align-middle p-1">
@@ -780,18 +812,23 @@ export default function Main() {
                                                         )}
                                                     </td>
                                                     <td className="py-1 align-middle p-1">
-                                                        <JamCount count={Array.isArray(track.jammers) ? track.jammers.length : 0} />
+                                                        <JamCount count={getTotalJamCount(track)} />
                                                     </td>
                                                     <td className="py-1 align-middle p-1">
                                                         <div className="flex flex-row gap-1 items-center">
                                                             <button
-                                                                className={`text-base px-1 py-1 rounded text-yellow-800 hover:bg-yellow-100`}
-                                                                title="Jam"
-                                                                aria-label="Thumbs Up"
+                                                                className={`text-base px-1 py-1 rounded hover:bg-orange-100 relative ${userJamCount > 0 ? 'bg-orange-50' : ''}`}
+                                                                title={`Jam (Shift+Click to unjam)${userJamCount > 0 ? ` - You: ${userJamCount}` : ''}`}
+                                                                aria-label="Jam"
                                                                 type="button"
-                                                                onClick={() => handleJam(track)}
+                                                                onClick={(e) => handleJam(track, e.shiftKey)}
                                                             >
-                                                                {hasJammedRow ? '👎' : '👍'}
+                                                                🔥
+                                                                {userJamCount > 0 && (
+                                                                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] rounded-full w-3 h-3 flex items-center justify-center font-bold">
+                                                                        {userJamCount}
+                                                                    </span>
+                                                                )}
                                                             </button>
                                                             {!track.isFallback && (
                                                                 <button
@@ -937,7 +974,7 @@ export default function Main() {
                                             {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
                                                 <div className="flex items-center gap-2">
                                                     {event.type === 'user_connected' ? (
-                                                        event.details?.restart ? (
+                                                        (event.details?.restart || event.details?.loginType === 'system') ? (
                                                             <span className="text-lg">🔄</span>
                                                         ) : event.details?.loginType === 'spotify' ? (
                                                             <img src="/256px-Spotify_icon.svg.png" alt="Spotify" className="w-5 h-5" />
@@ -951,7 +988,7 @@ export default function Main() {
                                                         <span className="font-semibold">{event.userName}</span>
                                                         <span className="text-gray-600 ml-1">
                                                             {event.type === 'user_connected' ? (
-                                                                event.details?.restart ? (
+                                                                (event.details?.restart || event.details?.loginType === 'system') ? (
                                                                     <span className="text-purple-600 font-medium">restarted</span>
                                                                 ) : (
                                                                     <>
