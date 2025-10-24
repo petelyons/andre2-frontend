@@ -1078,8 +1078,23 @@ export default function Main() {
                                                 </div>
                                             )}
                                             
+                                            {/* Fallback play events */}
+                                            {event.type === 'fallback_play' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">🎵</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-xs text-gray-800 truncate">
+                                                            {event.details?.track || 'Unknown Track'}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500 italic">
+                                                            from {event.details?.playlist || 'Fallback Playlist'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
                                             {/* Unknown/unhandled event types */}
-                                            {!['message', 'user_connected', 'user_disconnected', 'track_play', 'track_skip', 'track_added', 'jam', 'unjam', 'airhorn'].includes(event.type) && (
+                                            {!['message', 'user_connected', 'user_disconnected', 'track_play', 'track_skip', 'track_added', 'jam', 'unjam', 'airhorn', 'fallback_play'].includes(event.type) && (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-lg">❓</span>
                                                     <div className="flex-1 min-w-0">
