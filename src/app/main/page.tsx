@@ -565,15 +565,20 @@ export default function Main() {
                     {fallbackInfo && (
                         <div className="text-xs text-gray-600 mb-2">
                             <span className="font-semibold">Fallback:</span>{' '}
-                            <a
-                                href={fallbackInfo.url && fallbackInfo.url.startsWith('spotify:playlist:') ? `https://open.spotify.com/playlist/${fallbackInfo.url.split(':')[2]}` : (fallbackInfo.url || '#')}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-600 underline"
-                                title="Open fallback playlist"
-                            >
-                                {fallbackInfo.name}
-                            </a>{' '}
+                            {isMaster ? (
+                                <button
+                                    onClick={() => {
+                                        handleWsSend({ type: 'start_fallback', sessionId });
+                                        setToast('Reloading fallback playlist...');
+                                    }}
+                                    className="text-blue-600 underline hover:text-blue-800 cursor-pointer"
+                                    title="Click to reload fallback playlist"
+                                >
+                                    {fallbackInfo.name}
+                                </button>
+                            ) : (
+                                <span className="text-gray-800">{fallbackInfo.name}</span>
+                            )}{' '}
                             <span className="text-gray-400">({fallbackInfo.trackCount})</span>
                         </div>
                     )}
@@ -958,23 +963,27 @@ export default function Main() {
                                                 </div>
                                             )}
                                             
-                                            {/* Track play events */}
+                                            {/* Track play events - Prominent with album art */}
                                             {event.type === 'track_play' && (
                                                 <div className="flex items-start gap-2">
-                                                    <span className="text-lg mt-0.5">▶️</span>
                                                     {event.details?.track ? (
                                                         <>
-                                                            {event.details.track.albumArtUrl && (
-                                                                <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
+                                                            {event.details.track.albumArtUrl ? (
+                                                                <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-16 h-16 object-cover rounded-lg shadow-md" />
+                                                            ) : (
+                                                                <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg shadow-md flex items-center justify-center text-2xl">
+                                                                    🎵
+                                                                </div>
                                                             )}
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri || 'Unknown Track'}</div>
-                                                                <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist || 'Unknown Artist'}</div>
+                                                                <div className="font-bold text-sm truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri || 'Unknown Track'}</div>
+                                                                <div className="text-xs text-gray-700 truncate font-medium">{event.details.track.artist || 'Unknown Artist'}</div>
                                                                 {event.details.track.album && (
-                                                                    <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                                    <div className="text-[10px] text-gray-500 truncate italic mt-0.5">{event.details.track.album}</div>
                                                                 )}
-                                                                <div className="text-[10px] text-gray-500 mt-0.5">
-                                                                    <span className="font-medium">Started by:</span> {event.userName}
+                                                                <div className="text-[10px] text-green-600 mt-1 flex items-center gap-1">
+                                                                    <span>▶️</span>
+                                                                    <span className="font-medium">Now playing • Started by {event.userName}</span>
                                                                 </div>
                                                             </div>
                                                         </>
@@ -992,26 +1001,21 @@ export default function Main() {
                                                 </div>
                                             )}
                                             
-                                            {/* Track skip events */}
+                                            {/* Track skip events - Minimal, skips are rare */}
                                             {event.type === 'track_skip' && (
-                                                <div className="flex items-start gap-2">
-                                                    <span className="text-lg mt-0.5">⏭️</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">⏭️</span>
                                                     {event.details?.track ? (
-                                                        <>
-                                                            {event.details.track.albumArtUrl && (
-                                                                <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
-                                                            )}
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri || 'Unknown Track'}</div>
-                                                                <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist || 'Unknown Artist'}</div>
-                                                                {event.details.track.album && (
-                                                                    <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-xs text-gray-700">
+                                                                <span className="font-semibold">{event.userName}</span>
+                                                                <span className="text-gray-500 mx-1">skipped</span>
+                                                                <span className="font-medium text-gray-800">{event.details.track.name || event.details.track.spotifyUri || 'a track'}</span>
+                                                                {event.details.track.artist && (
+                                                                    <span className="text-gray-500"> by {event.details.track.artist}</span>
                                                                 )}
-                                                                <div className="text-[10px] text-gray-500 mt-0.5">
-                                                                    <span className="font-medium">Skipped by:</span> {event.userName}
-                                                                </div>
                                                             </div>
-                                                        </>
+                                                        </div>
                                                     ) : (
                                                         <div className="flex-1 min-w-0">
                                                             <div className="font-semibold text-xs text-orange-600">🐛 Track Skip Event (Missing Track Data)</div>
