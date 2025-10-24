@@ -245,7 +245,12 @@ export default function Main() {
                     case 'play_airhorn':
                         console.log('Airhorn play command received', { airhorn: data.airhorn });
                         if (data.airhorn) {
+                            // Try .mp3 first, fallback to .wav if it fails
                             const audio = new window.Audio(`/airhorns/${data.airhorn}.mp3`);
+                            audio.addEventListener('error', () => {
+                                const audioWav = new window.Audio(`/airhorns/${data.airhorn}.wav`);
+                                audioWav.play();
+                            }, { once: true });
                             audio.play();
                         }
                         break;
