@@ -937,7 +937,9 @@ export default function Main() {
                                             {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
                                                 <div className="flex items-center gap-2">
                                                     {event.type === 'user_connected' ? (
-                                                        event.details?.loginType === 'spotify' ? (
+                                                        event.details?.restart ? (
+                                                            <span className="text-lg">🔄</span>
+                                                        ) : event.details?.loginType === 'spotify' ? (
                                                             <img src="/256px-Spotify_icon.svg.png" alt="Spotify" className="w-5 h-5" />
                                                         ) : (
                                                             <span className="text-lg">🟢</span>
@@ -949,12 +951,16 @@ export default function Main() {
                                                         <span className="font-semibold">{event.userName}</span>
                                                         <span className="text-gray-600 ml-1">
                                                             {event.type === 'user_connected' ? (
-                                                                <>
-                                                                    joined{' '}
-                                                                    <span className="text-gray-500 italic">
-                                                                        {event.details?.loginType === 'spotify' ? 'via Spotify' : 'as Offline Contributor'}
-                                                                    </span>
-                                                                </>
+                                                                event.details?.restart ? (
+                                                                    <span className="text-purple-600 font-medium">restarted</span>
+                                                                ) : (
+                                                                    <>
+                                                                        joined{' '}
+                                                                        <span className="text-gray-500 italic">
+                                                                            {event.details?.loginType === 'spotify' ? 'via Spotify' : 'as Offline Contributor'}
+                                                                        </span>
+                                                                    </>
+                                                                )
                                                             ) : (
                                                                 'left'
                                                             )}
