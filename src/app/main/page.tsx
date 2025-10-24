@@ -931,51 +931,98 @@ export default function Main() {
                                             {/* Session events */}
                                             {(event.type === 'user_connected' || event.type === 'user_disconnected') && (
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-lg">{event.type === 'user_connected' ? '🟢' : '🔴'}</span>
+                                                    {event.type === 'user_connected' ? (
+                                                        event.details?.loginType === 'spotify' ? (
+                                                            <img src="/256px-Spotify_icon.svg.png" alt="Spotify" className="w-5 h-5" />
+                                                        ) : (
+                                                            <span className="text-lg">🟢</span>
+                                                        )
+                                                    ) : (
+                                                        <span className="text-lg">🔴</span>
+                                                    )}
                                                     <div className="text-xs">
                                                         <span className="font-semibold">{event.userName}</span>
-                                                        <span className="text-gray-600 ml-1">{event.type === 'user_connected' ? 'joined' : 'left'}</span>
+                                                        <span className="text-gray-600 ml-1">
+                                                            {event.type === 'user_connected' ? (
+                                                                <>
+                                                                    joined{' '}
+                                                                    <span className="text-gray-500 italic">
+                                                                        {event.details?.loginType === 'spotify' ? 'via Spotify' : 'as Offline Contributor'}
+                                                                    </span>
+                                                                </>
+                                                            ) : (
+                                                                'left'
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             )}
                                             
                                             {/* Track play events */}
-                                            {event.type === 'track_play' && event.details.track && (
+                                            {event.type === 'track_play' && (
                                                 <div className="flex items-start gap-2">
                                                     <span className="text-lg mt-0.5">▶️</span>
-                                                    {event.details.track.albumArtUrl && (
-                                                        <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri}</div>
-                                                        <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist}</div>
-                                                        {event.details.track.album && (
-                                                            <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
-                                                        )}
-                                                        <div className="text-[10px] text-gray-500 mt-0.5">
-                                                            <span className="font-medium">Started by:</span> {event.userName}
+                                                    {event.details?.track ? (
+                                                        <>
+                                                            {event.details.track.albumArtUrl && (
+                                                                <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri || 'Unknown Track'}</div>
+                                                                <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist || 'Unknown Artist'}</div>
+                                                                {event.details.track.album && (
+                                                                    <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                                )}
+                                                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                                                    <span className="font-medium">Started by:</span> {event.userName}
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-semibold text-xs text-orange-600">🐛 Track Play Event (Missing Track Data)</div>
+                                                            <div className="text-[10px] text-gray-600">
+                                                                Started by: {event.userName}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-400 mt-0.5">
+                                                                Debug: event.details = {JSON.stringify(event.details)}
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             )}
                                             
                                             {/* Track skip events */}
-                                            {event.type === 'track_skip' && event.details.track && (
+                                            {event.type === 'track_skip' && (
                                                 <div className="flex items-start gap-2">
                                                     <span className="text-lg mt-0.5">⏭️</span>
-                                                    {event.details.track.albumArtUrl && (
-                                                        <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri}</div>
-                                                        <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist}</div>
-                                                        {event.details.track.album && (
-                                                            <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
-                                                        )}
-                                                        <div className="text-[10px] text-gray-500 mt-0.5">
-                                                            <span className="font-medium">Skipped by:</span> {event.userName}
+                                                    {event.details?.track ? (
+                                                        <>
+                                                            {event.details.track.albumArtUrl && (
+                                                                <img src={event.details.track.albumArtUrl} alt={event.details.track.album || ''} className="w-12 h-12 object-cover rounded shadow-sm" />
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-semibold text-xs truncate text-gray-900">{event.details.track.name || event.details.track.spotifyUri || 'Unknown Track'}</div>
+                                                                <div className="text-[10px] text-gray-600 truncate">{event.details.track.artist || 'Unknown Artist'}</div>
+                                                                {event.details.track.album && (
+                                                                    <div className="text-[10px] text-gray-500 truncate italic">{event.details.track.album}</div>
+                                                                )}
+                                                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                                                    <span className="font-medium">Skipped by:</span> {event.userName}
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-semibold text-xs text-orange-600">🐛 Track Skip Event (Missing Track Data)</div>
+                                                            <div className="text-[10px] text-gray-600">
+                                                                Skipped by: {event.userName}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-400 mt-0.5">
+                                                                Debug: event.details = {JSON.stringify(event.details)}
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             )}
                                             
@@ -1027,6 +1074,19 @@ export default function Main() {
                                                             {event.userName}
                                                         </div>
                                                         <div className="text-xs mt-0.5 text-gray-600">played <span className="font-bold">{event.details.airhorn.replace(/-/g, ' ').replace(/_/g, ' ')}</span></div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Unknown/unhandled event types */}
+                                            {!['message', 'user_connected', 'user_disconnected', 'track_play', 'track_skip', 'track_added', 'jam', 'unjam', 'airhorn'].includes(event.type) && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">❓</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-xs text-purple-600">🐛 Unknown Event Type: {event.type}</div>
+                                                        <div className="text-[10px] text-gray-400 mt-0.5">
+                                                            Debug: {JSON.stringify(event)}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
