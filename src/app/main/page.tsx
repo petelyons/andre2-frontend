@@ -585,7 +585,7 @@ export default function Main() {
                         <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2 mb-0.5">
                                 <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-                                <span className="text-xs">{connected ? 'Connected' : 'Disconnected'}</span>
+                                <span className="text-xs">{connected ? `Connected (${userEmail || 'unknown'})` : 'Disconnected'}</span>
                             </div>
                         </div>
                     </div>
